@@ -1,90 +1,37 @@
-# HR Core — نظام تشغيل الموارد البشرية
+# HR Core — Enterprise HR Operating System
 
-نسخة Demo / Presentation Prototype لمنصة SaaS لإدارة عمليات الموارد البشرية، مبنية بواجهة React + Vite وبيانات Mock محلية. جميع البيانات وهمية ولا تمثل نظامًا إنتاجيًا أو عزلًا حقيقيًا للـMulti-Tenant.
+HR Core is being built as a multi-tenant enterprise HR platform, not a presentation-only demo.
 
-## التشغيل
+## Current build
+- Dynamic transaction definition builder.
+- Dynamic form fields with visibility and required rules.
+- Workflow steps with assignee resolution, actions and transitions.
+- Versioned transaction-definition foundation.
+- Transaction instances with history and audit foundation.
+- Employee, leave, payroll, EOS, documents and reports foundations.
+- Supabase/PostgreSQL schema with tenant isolation foundation.
+- Local mode remains available for UI development only.
+
+## Architecture target
+React/Vite → authenticated application → Supabase Auth/PostgreSQL/Storage → RLS/RBAC/Audit/Backups.
+
+The browser is never trusted for authorization.
+
+## Run
+
 ```bash
 npm install
+npm run build
 npm run dev
 ```
 
-## Build
+For Supabase:
+
 ```bash
-npm run build
-npm run preview
+cp .env.example .env
 ```
 
-## GitHub Pages
-1. ارفع المشروع إلى مستودع GitHub.
-2. فعّل GitHub Pages من Settings → Pages.
-3. استخدم GitHub Actions أو ارفع محتويات `dist` حسب طريقة الاستضافة لديك.
-4. المشروع يستخدم Hash routing، لذلك لا يعتمد على إعدادات server-side rewrites.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Never expose a service-role key in the browser.
 
-> ملاحظة: الحزمة الحالية معدّة للبناء والنشر، ويجب تنفيذ `npm install` في بيئة متصلة بالإنترنت لتثبيت الاعتمادات.
-
-## حسابات العرض
-يمكن تبديل الدور مباشرة من أعلى الواجهة:
-- Super Admin
-- HR Manager
-- HR Specialist
-- Department Manager
-- Employee
-
-ويمكن تبديل الشركة بالضغط على محدد الشركة أعلى الواجهة:
-- شركة النخبة للتجارة
-- شركة مدار الطبية
-- شركة حلول الأعمال
-- شركة الريادة للخدمات
-
-## سيناريو عرض 5–10 دقائق
-1. ابدأ من Dashboard واشرح مؤشرات القوى العاملة والتنبيهات.
-2. بدّل الشركة لإظهار فكرة Multi-Company.
-3. افتح الموظفين ثم ملف موظف واستعرض Timeline والسجل.
-4. أنشئ طلب إجازة من Dashboard، راجع حساب الأيام، ثم افتح مركز المعاملات.
-5. حدّث حالة المعاملة لتوضيح دورة الاعتماد والإغلاق.
-6. اعرض Payroll ثم مفردات الراتب.
-7. اعرض حاسبة نهاية الخدمة مع تنبيه أنها محاكاة تعليمية.
-8. اختم بالتقارير والإعدادات وتبديل Role.
-
-## قبل الإنتاج الحقيقي
-استبدال Mock Data بطبقة API/Service، إضافة Authentication وRBAC فعلي، عزل Tenant على مستوى Backend/Database، تدقيق الصلاحيات، سجلات Audit غير قابلة للعبث، تشفير البيانات الحساسة، إدارة الملفات، اختبارات آلية، مراقبة، نسخ احتياطي، وسياسات امتثال وخصوصية مناسبة.
-
-
-## HR Core Professional Edition
-هذه النسخة تطور الـDemo إلى بيئة تشغيل محلية فعلية للعرض والاستخدام التجريبي:
-- Sidebar RTL على اليمين.
-- حفظ البيانات محليًا في `localStorage` بدل فقدان التغييرات عند إعادة التحميل.
-- Multi-company مع حالة مستقلة لكل شركة.
-- أدوار Demo قابلة للتبديل.
-- إضافة موظف وتحديث عدد القوى العاملة.
-- إنشاء طلب إجازة وإنشاء معاملة مرتبطة.
-- إنشاء معاملات من مركز المعاملات.
-- وحدات حضور يومي وتأخيرات وغياب.
-- واجهة SaaS أكثر كثافة واحترافية ومتجاوبة.
-- طبقة `services/` تمهيدًا لاستبدال التخزين المحلي بـ API حقيقي.
-
-> ملاحظة: هذه النسخة لا تزال Frontend-only؛ الاستخدام المؤسسي الحقيقي يتطلب Backend وAuthentication وقاعدة بيانات وصلاحيات server-side وسجل تدقيق ونسخ احتياطي.
-
-
-## تشغيل النظام الفعلي عبر Supabase
-
-هذه النسخة أصبحت جاهزة للانتقال من Mock-only إلى بيئة تشغيل حقيقية:
-1. أنشئ مشروع Supabase.
-2. افتح SQL Editor وشغّل `supabase/schema.sql`.
-3. أنشئ مستخدمي Authentication من Supabase Auth.
-4. اربط كل مستخدم بسجل `profiles` وحدد `role` و`company_id`.
-5. انسخ `.env.example` إلى `.env` وضع `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
-6. نفذ `npm install` ثم `npm run build`.
-7. انشر مجلد `dist` على Cloudflare Pages.
-
-### الصلاحيات
-- `super_admin`: إدارة كاملة على مستوى البيئة.
-- `hr_manager`: إدارة عمليات HR.
-- `hr_specialist`: معالجة المعاملات والموظفين المسموحين.
-- `department_manager`: نطاق إدارته واعتماد الطلبات.
-- `employee`: بياناته وطلباته فقط.
-
-الصلاحيات الحساسة ليست مجرد إخفاء أزرار في الواجهة؛ توجد سياسات Row Level Security في قاعدة البيانات لعزل الشركات والموظفين.
-
-### ملاحظة مهمة
-لن أضع مفاتيح Supabase داخل المستودع. `VITE_SUPABASE_ANON_KEY` يمكن استخدامه في الواجهة عند تطبيق RLS بشكل صحيح، بينما `service_role` وأي مفاتيح سرية يجب أن تبقى server-side فقط.
+## Important
+This repository is a development foundation. It is not a claim that security, legal compliance, load capacity or production readiness has been independently certified. Before real employee data, complete the production checklist and run security/load/E2E testing.
