@@ -1,3 +1,5 @@
+import { authService } from './services/auth';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 import React,{useMemo,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {LayoutDashboard,Users,FileText,CalendarDays,WalletCards,UserMinus,Files,BarChart3,Settings,Search,Bell,Plus,ArrowLeft,ChevronDown,CheckCircle2,Clock3,AlertTriangle,X,Menu,Building2,GitBranch,BriefcaseBusiness,ShieldCheck,Download,Filter,Eye,Send,RefreshCw} from 'lucide-react';
@@ -17,6 +19,19 @@ const nav=[
  {section:'الإعدادات',items:[['settings','الإعدادات',Settings]]}
 ];
 
+function LoginScreen({onLogin}){
+ const [email,setEmail]=useState('admin@hrcore.demo'); const [password,setPassword]=useState(''); const [busy,setBusy]=useState(false); const [error,setError]=useState('');
+ const submit=async e=>{e.preventDefault();setBusy(true);setError('');try{await onLogin(email,password)}catch(err){setError(err.message||'تعذر تسجيل الدخول')}finally{setBusy(false)}};
+ return <div className="auth-shell"><div className="auth-card"><div className="auth-brand"><div className="logo">HR</div><div><strong>HR Core</strong><small>نظام تشغيل الموارد البشرية</small></div></div><div className="eyebrow">تسجيل الدخول</div><h1>مرحبًا بعودتك</h1><p>سجّل الدخول للوصول إلى بيئة الموارد البشرية الخاصة بشركتك.</p>{error&&<div className="notice warning">{error}</div>}<form onSubmit={submit}><div className="field"><label>البريد الإلكتروني</label><input required type="email" value={email} onChange={e=>setEmail(e.target.value)}/></div><div className="field" style={{marginTop:12}}><label>كلمة المرور</label><input required type="password" value={password} onChange={e=>setPassword(e.target.value)}/></div><button className="btn primary" style={{width:'100%',justifyContent:'center',marginTop:16}} disabled={busy}>{busy?'جارٍ الدخول…':'تسجيل الدخول'}</button></form><div className="auth-foot">بيئة تشغيل فعلية — البيانات والصلاحيات تُدار عبر Supabase</div></div></div>
+}
+function AuthGate({children}){
+ const [session,setSession]=useState(null); const [ready,setReady]=useState(!isSupabaseConfigured);
+ React.useEffect(()=>{if(!supabase)return;authService.getSession().then(({data})=>{setSession(data.session);setReady(true)});const {data}=authService.onAuthStateChange((_e,s)=>setSession(s));return()=>data.subscription.unsubscribe()},[]);
+ if(!isSupabaseConfigured)return children;
+ if(!ready)return <div className="auth-loading">جارٍ التحقق من الجلسة…</div>;
+ if(!session)return <LoginScreen onLogin={async(email,password)=>{const {error}=await authService.signIn(email,password);if(error)throw error}}/>;
+ return children;
+}
 function App(){
  const [companyId,setCompanyId]=useState('elite'); const [roleId,setRoleId]=useState('hrm'); const [page,setPage]=useState(location.hash.replace('#/','')||'dashboard'); const [employees,setEmployees]=useState(employeesFor('elite')); const [transactions,setTransactions]=useState(seedTransactions); const [leaveData,setLeaveData]=useState(leaves); const [toast,setToast]=useState(''); const [modal,setModal]=useState(null); const [mobile,setMobile]=useState(false);
  const company=companies.find(c=>c.id===companyId); const role=roles.find(r=>r.id===roleId);

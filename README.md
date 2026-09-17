@@ -64,3 +64,27 @@ npm run preview
 - طبقة `services/` تمهيدًا لاستبدال التخزين المحلي بـ API حقيقي.
 
 > ملاحظة: هذه النسخة لا تزال Frontend-only؛ الاستخدام المؤسسي الحقيقي يتطلب Backend وAuthentication وقاعدة بيانات وصلاحيات server-side وسجل تدقيق ونسخ احتياطي.
+
+
+## تشغيل النظام الفعلي عبر Supabase
+
+هذه النسخة أصبحت جاهزة للانتقال من Mock-only إلى بيئة تشغيل حقيقية:
+1. أنشئ مشروع Supabase.
+2. افتح SQL Editor وشغّل `supabase/schema.sql`.
+3. أنشئ مستخدمي Authentication من Supabase Auth.
+4. اربط كل مستخدم بسجل `profiles` وحدد `role` و`company_id`.
+5. انسخ `.env.example` إلى `.env` وضع `VITE_SUPABASE_URL` و`VITE_SUPABASE_ANON_KEY`.
+6. نفذ `npm install` ثم `npm run build`.
+7. انشر مجلد `dist` على Cloudflare Pages.
+
+### الصلاحيات
+- `super_admin`: إدارة كاملة على مستوى البيئة.
+- `hr_manager`: إدارة عمليات HR.
+- `hr_specialist`: معالجة المعاملات والموظفين المسموحين.
+- `department_manager`: نطاق إدارته واعتماد الطلبات.
+- `employee`: بياناته وطلباته فقط.
+
+الصلاحيات الحساسة ليست مجرد إخفاء أزرار في الواجهة؛ توجد سياسات Row Level Security في قاعدة البيانات لعزل الشركات والموظفين.
+
+### ملاحظة مهمة
+لن أضع مفاتيح Supabase داخل المستودع. `VITE_SUPABASE_ANON_KEY` يمكن استخدامه في الواجهة عند تطبيق RLS بشكل صحيح، بينما `service_role` وأي مفاتيح سرية يجب أن تبقى server-side فقط.
