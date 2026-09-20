@@ -1,6 +1,6 @@
-# HR Core — Cloudflare Pages + D1
+# HR Core — Cloudflare Workers + Vite + D1
 
-## 1. Build
+## Build
 
 ```bash
 npm install
@@ -9,36 +9,30 @@ npm run build
 
 Output: `dist`
 
-## 2. D1 binding
+## Workers Builds
 
-`wrangler.toml` يحتوي binding باسم `DB` وقاعدة باسم `hr-core`.
-استبدل `REPLACE_WITH_YOUR_D1_DATABASE_ID` بالـDatabase ID من Cloudflare.
+Use these settings in Cloudflare Workers Builds:
 
-## 3. Migration
-
-إذا كانت قاعدة `hr-core` جديدة:
-
-```bash
-npx wrangler d1 migrations apply hr-core --remote
-```
-
-## 4. Pages
-
-في Cloudflare Pages:
 - Build command: `npm run build`
-- Build output: `dist`
-- Functions موجودة داخل `functions/`
-- اربط D1 binding باسم `DB` في Pages > Settings > Functions > D1 database bindings.
+- Deploy command: `npx wrangler deploy`
+- Version command: leave empty
+- Root directory: `/`
 
-## 5. اختبار الاتصال
+The repository is deployed as a Cloudflare Worker. The Worker serves `/api/*` and Vite's `dist` files through the Workers Static Assets binding.
 
-بعد النشر افتح:
+## D1
 
-`/api/health`
+`wrangler.toml` contains a D1 binding named `DB` for the existing database `hr-core`.
+Replace `REPLACE_WITH_YOUR_D1_DATABASE_ID` with the actual D1 Database ID, or configure the D1 binding in the Cloudflare Worker settings.
 
-ويجب أن تحصل على JSON يوضح أن D1 متصل.
+Do not run the migration until the existing `hr-core` schema has been inspected.
 
-## مهم جدًا — المصادقة
+## API
 
-D1 قاعدة بيانات فقط وليست نظام تسجيل دخول. النسخة الحالية تستخدم اختيار الدور في شريط النظام للديمو، وهذا **ليس حماية إنتاجية**.
-قبل إدخال بيانات موظفين حقيقية يجب إضافة Auth وربط المستخدم بالدور والنطاق، ثم تطبيق التحقق داخل Functions قبل كل query/mutation. إخفاء القائمة في React ليس بديلًا عن الحماية الخادمية.
+- `GET /api/health` — verifies the D1 binding.
+- `GET /api/state` — loads HR Core state from D1.
+- `POST /api/mutations` — creates definitions/transactions and applies transaction actions.
+
+## Important
+
+D1 is a database, not an authentication system. The current UI role selector is for demonstration only. Before production use with real employee data, add real authentication and enforce user identity, role, permissions and data scope inside the Worker for every API operation. Hiding UI items is not a security boundary.
