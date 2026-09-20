@@ -19,17 +19,10 @@ const roles=[
 /* UI permissions are intentionally granular. Production authorization must be enforced by the API/DB as well. */
 const permissions={
  super_admin:['*'],
- hr:['employees.view','employees.create','transactions.view_all','transactions.create','transactions.act','transactions.builder','leaves.view_all','payroll.view','eos.view','documents.view_all','reports.view','settings.view','users.manage','roles.manage','audit.view'],
- manager:['employees.view_team','transactions.view_inbox','transactions.view_sent','transactions.create','transactions.act','leaves.view_team','documents.view_team','reports.view_team'],
- employee:['transactions.view_self','transactions.view_inbox','transactions.view_sent','transactions.create','leaves.view_self','documents.view_self','payroll.view_self']
+ hr:['employees.view','employees.create','employees.view_salary','transactions.view','transactions.create','transactions.act','transactions.builder','leaves.view','payroll.view','eos.view','documents.view','reports.view','settings.view','users.manage','roles.manage','audit.view'],
+ manager:['employees.view','transactions.view','transactions.create','transactions.act','leaves.view','documents.view','reports.view'],
+ employee:['transactions.view','transactions.create','leaves.view','documents.view','payroll.view']
 };
-const has=(role,p)=>permissions[role]?.includes('*')||permissions[role]?.includes(p);
-
-const seedEmployees=[
-{id:'EMP-1001',name:'محمد أحمد',job:'أخصائي موارد بشرية',dept:'الموارد البشرية',branch:'الرياض',nationality:'سعودي',salary:9000,joinDate:'2023-01-01',status:'على رأس العمل',managerId:null},
-{id:'EMP-1002',name:'سارة العتيبي',job:'مدير فرع',dept:'العمليات',branch:'الرياض',nationality:'سعودية',salary:12500,joinDate:'2022-05-15',status:'على رأس العمل',managerId:null},
-{id:'EMP-1003',name:'خالد الحربي',job:'محاسب',dept:'المالية',branch:'جدة',nationality:'سعودي',salary:8500,joinDate:'2024-02-10',status:'على رأس العمل',managerId:'EMP-1002'},
-{id:'EMP-1004',name:'ريم القحطاني',job:'منسق عمليات',dept:'العمليات',branch:'الدمام',nationality:'سعودية',salary:7200,joinDate:'2025-08-01',status:'على رأس العمل',managerId:'EMP-1002'}];
 const seedDefinitions=[{id:'leave',name:'طلب إجازة',category:'الإجازات',active:true,public:true,fields:[
 {id:'leave_type',label:'نوع الإجازة',type:'select',required:true,options:['سنوية','مرضية','غير مدفوعة']},{id:'from',label:'تاريخ البداية',type:'date',required:true},{id:'to',label:'تاريخ النهاية',type:'date',required:true},{id:'reason',label:'السبب',type:'textarea',required:false},{id:'attachment',label:'مرفق مؤيد',type:'file',required:false}],steps:[
 {id:'s1',name:'اعتماد المدير المباشر',assignee:{type:'manager'},actions:[{id:'approve',label:'موافقة',next:'s2'},{id:'reject',label:'رفض',next:'END_REJECTED'},{id:'return',label:'إعادة للتعديل',next:'START'}]},
@@ -54,35 +47,82 @@ const nav=[
 ];
 
 function apiAvailable(){return typeof window!=='undefined'&&window.location.pathname!=='/local'}
-async function apiGet(url){const r=await fetch(url,{headers:{'Accept':'application/json'}});if(!r.ok)throw new Error(await r.text());return r.json()}
-async function apiPost(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json()}
+async function apiGet(url){const r=await fetch(url,{headers:{'Accept':'application/json'},credentials:'same-origin'});if(!r.ok)throw new Error(await r.text());return r.json()}
+async function apiPost(url,body){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},credentials:'same-origin',body:JSON.stringify(body)});if(!r.ok)throw new Error(await r.text());return r.json()}
+async function apiDelete(url){const r=await fetch(url,{method:'DELETE',headers:{'Accept':'application/json'},credentials:'same-origin'});if(!r.ok)throw new Error(await r.text());return r.json()}
 
-function useStore(){
- const [state,setState]=useState(loadLocal); const [loading,setLoading]=useState(true); const [db,setDb]=useState(false);
- useEffect(()=>{let alive=true;(async()=>{try{const remote=await apiGet('/api/state');if(alive&&remote?.company){setState({...remote,source:'d1'});setDb(true);saveLocal({...remote,source:'d1'});}}catch{}finally{if(alive)setLoading(false)}})();},[]);
- useEffect(()=>{if(!loading)saveLocal(state)},[state,loading]);
+function useStore(ready){
+ const [state,setState]=useState(loadLocal);
+ const [loading,setLoading]=useState(!ready);
+ const [db,setDb]=useState(false);
+ useEffect(()=>{
+   if(!ready){setLoading(false);return;}
+   let alive=true;
+   (async()=>{
+     try{
+       const remote=await apiGet('/api/state');
+       if(alive&&remote?.company){setState({...remote,source:'d1'});setDb(true);saveLocal({...remote,source:'d1'});}
+     }catch(e){if(alive)setDb(false)}
+     finally{if(alive)setLoading(false)}
+   })();
+   return()=>{alive=false};
+ },[ready]);
+ useEffect(()=>{if(!loading&&ready)saveLocal(state)},[state,loading,ready]);
  const commit=async updater=>{let next;setState(prev=>{next=typeof updater==='function'?updater(prev):updater;return next});return next};
  return [state,commit,loading,db,setDb];
 }
 
 function Page({title,desc,actions,children}){return <div className="content"><div className="page-head"><div><div className="eyebrow">HR Core / {title}</div><h1>{title}</h1><p className="page-desc">{desc}</p></div><div className="actions">{actions}</div></div>{children}</div>}
 function AccessDenied({go}){return <Page title="غير مصرح" desc="لا تملك الصلاحية اللازمة للوصول إلى هذه الشاشة."><div className="panel"><div className="empty"><Lock size={24}/><b>الوصول غير متاح</b><span>تم إخفاء هذه الشاشة من القائمة، وإذا تم فتح الرابط مباشرة فسيتم رفض الوصول أيضًا.</span><button className="btn primary" onClick={()=>go('dashboard')}>العودة للرئيسية</button></div></div></Page>}
+function AuthScreen({onLogin}){
+ const [username,setUsername]=useState('admin');
+ const [pin,setPin]=useState('1234');
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState('');
+ const submit=async e=>{
+   e.preventDefault();setError('');setBusy(true);
+   try{const result=await apiPost('/api/auth/login',{username,pin});onLogin(result);}
+   catch(err){try{const data=JSON.parse(err.message);setError(data.error||'تعذر تسجيل الدخول')}catch{setError('بيانات الدخول غير صحيحة')}}
+   finally{setBusy(false)}
+ };
+ return <div className="login-screen" dir="rtl">
+   <div className="login-card">
+     <div className="login-logo">H</div>
+     <div className="login-title">HR Core</div>
+     <div className="login-subtitle">نظام تشغيل الموارد البشرية</div>
+     <form onSubmit={submit}>
+       <label>اسم المستخدم</label>
+       <input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" placeholder="اسم المستخدم"/>
+       <label>الرمز السري</label>
+       <input value={pin} onChange={e=>setPin(e.target.value)} inputMode="numeric" type="password" autoComplete="current-password" placeholder="الرمز السري"/>
+       {error&&<div className="login-error">{error}</div>}
+       <button className="btn primary login-btn" disabled={busy}>{busy?'جارٍ التحقق…':'تسجيل الدخول'}</button>
+     </form>
+     <div className="login-hint">المستخدم الأساسي: <b>admin</b> · الرمز: <b>1234</b></div>
+   </div>
+ </div>
+}
+
 function App(){
- const [state,setState,loading,db,setDb]=useStore();
- const [page,setPage]=useState(location.hash.replace('#/','')||'dashboard'); const [mobile,setMobile]=useState(false); const [modal,setModal]=useState(null); const [role,setRole]=useState(localStorage.getItem('hrcore:role')||'super_admin');
+ const [auth,setAuth]=useState({loading:true,authenticated:false,user:null});
+ const [state,setState,loading,db,setDb]=useStore(auth.authenticated);
+ const [page,setPage]=useState(location.hash.replace('#/','')||'dashboard'); const [mobile,setMobile]=useState(false); const [modal,setModal]=useState(null);
+ const role=auth.user?.roleId||'employee';
+ useEffect(()=>{let alive=true;(async()=>{try{const me=await apiGet('/api/auth/me');if(alive)setAuth({loading:false,authenticated:true,user:me.user,permissions:me.permissions||[]});}catch{if(alive)setAuth({loading:false,authenticated:false,user:null});}})();return()=>{alive=false}},[]);
  const go=p=>{setPage(p);location.hash='/'+p;setMobile(false)};
  const canPage=id=>{if(id==='dashboard')return true;const item=nav.find(n=>n[0]===id);return !item?.[3]||has(role,item[3])};
  useEffect(()=>{if(!canPage(page))go('dashboard')},[role]);
- const setRoleSafe=r=>{setRole(r);localStorage.setItem('hrcore:role',r)};
  const createDefinition=async d=>{const next=addAudit({...state,definitions:[...state.definitions,d]},'إنشاء','transaction_definition',d.id,d.name);setState(next);setModal(null);try{const remote=await apiPost('/api/mutations',{type:'definition.create',payload:d});if(remote?.state){setState({...remote.state,source:'d1'});setDb(true)}}catch{}go('builder')};
  const createTransaction=async(def,values)=>{const t={id:uid('TRX'),definitionId:def.id,definitionName:def.name,employeeId:values.employeeId||state.employees[0]?.id,values,createdAt:new Date().toISOString(),status:'قيد المعالجة',currentStepId:def.steps[0]?.id||null,history:[{at:new Date().toISOString(),action:'تقديم',by:roles.find(r=>r.id===role)?.name,step:'تقديم'}],comments:[],attachments:[],requesterRole:role};const next=addAudit({...state,transactions:[t,...state.transactions]},'إنشاء','transaction',t.id,def.name,roles.find(r=>r.id===role)?.name);setState(next);setModal(null);try{const remote=await apiPost('/api/mutations',{type:'transaction.create',payload:t});if(remote?.state){setState({...remote.state,source:'d1'});setDb(true)}}catch{}go('transactions')};
  const actionTransaction=async(id,actionId)=>{let nextState;setState(s=>{const t=s.transactions.find(x=>x.id===id);if(!t)return s;const def=s.definitions.find(x=>x.id===t.definitionId);const step=def?.steps.find(x=>x.id===t.currentStepId);const action=step?.actions.find(x=>x.id===actionId);if(!action)return s;let status='قيد المعالجة',next=action.next;if(next==='END_APPROVED')status='مكتملة';if(next==='END_REJECTED')status='مرفوضة';if(next==='START')next=def.steps[0]?.id;const nt={...t,status,currentStepId:next,history:[...t.history,{at:new Date().toISOString(),action:action.label,by:roles.find(r=>r.id===role)?.name,step:step.name}]};nextState=addAudit({...s,transactions:s.transactions.map(x=>x.id===id?nt:x)},action.label,'transaction',id,step.name,roles.find(r=>r.id===role)?.name);return nextState});try{const remote=await apiPost('/api/mutations',{type:'transaction.action',payload:{id,actionId,role}});if(remote?.state){setState({...remote.state,source:'d1'});setDb(true)}}catch{}}
+ const logout=async()=>{try{await apiDelete('/api/auth/logout')}finally{setAuth({loading:false,authenticated:false,user:null});setDb(false)}};
  const reset=()=>{localStorage.removeItem(KEY);location.reload()};
- if(loading)return <div className="loading-screen"><div className="logo">H</div><b>جاري تحميل HR Core</b><span>يتم محاولة الاتصال بقاعدة D1 ثم استخدام الوضع المحلي عند الحاجة</span></div>;
- return <div className="app"><Sidebar page={page} go={go} open={mobile} role={role}/><main className="main"><Topbar company={state.company} role={role} setRole={setRoleSafe} onMenu={()=>setMobile(!mobile)} onReset={reset} db={db}/><div className="banner"><ShieldCheck size={15}/> <b>{db?'HR Core — متصل بـ D1':'HR Core — وضع التطوير المحلي'}</b><span>{db?'مصدر البيانات الحالي Cloudflare D1 عبر Pages Functions.':'لم يتم العثور على API متصل؛ البيانات محفوظة محليًا حتى يتم ربط D1.'}</span></div><Routes page={page} state={state} role={role} go={go} can={p=>has(role,p)} openModal={setModal} createTransaction={createTransaction} actionTransaction={actionTransaction} setState={setState}/></main>{modal&&<Modal modal={modal} close={()=>setModal(null)} state={state} createTransaction={createTransaction} createDefinition={createDefinition}/>}</div>
+ if(auth.loading||loading)return <div className="loading-screen"><div className="logo">H</div><b>جاري تحميل HR Core</b><span>التحقق من الجلسة والاتصال بقاعدة D1…</span></div>;
+ if(!auth.authenticated)return <AuthScreen onLogin={result=>setAuth({loading:false,authenticated:true,user:result.user,permissions:result.permissions||[]})}/>;
+ return <div className="app"><Sidebar page={page} go={go} open={mobile} role={role}/><main className="main"><Topbar company={state.company} user={auth.user} onMenu={()=>setMobile(!mobile)} onLogout={logout} onReset={reset} db={db}/><div className="banner"><ShieldCheck size={15}/> <b>{db?'HR Core — متصل بـ D1':'HR Core — تعذر تحميل بيانات D1'}</b><span>{db?'البيانات والصلاحيات تُقرأ من Cloudflare D1 عبر Worker.':'تحقق من اتصال Worker بقاعدة hr-core.'}</span></div><Routes page={page} state={state} role={role} go={go} can={p=>has(role,p)} openModal={setModal} createTransaction={createTransaction} actionTransaction={actionTransaction} setState={setState}/></main>{modal&&<Modal modal={modal} close={()=>setModal(null)} state={state} createTransaction={createTransaction} createDefinition={createDefinition}/>}</div>
 }
 function Sidebar({page,go,open,role}){return <aside className={'sidebar '+(open?'open':'')}><div className="brand"><div className="logo">H</div><div><strong>HR Core</strong><small>HR Operating System</small></div></div>{nav.filter(([id,,I,p])=>!p||has(role,p)).map(([id,label,I])=><button key={id} className={'nav-item '+(page===id?'active':'')} onClick={()=>go(id)}><I size={17}/><span>{label}</span></button>)}</aside>}
-function Topbar({company,role,setRole,onMenu,onReset,db}){return <header className="topbar"><button className="icon-btn mobile-menu" onClick={onMenu}><Menu/></button><div className="company-switch"><span className="company-mark">{company.code.slice(0,2)}</span><span><b>{company.name}</b><small>{company.code} · {company.timezone}</small></span><ChevronDown size={15}/></div><div className="top-actions"><span className={'connection '+(db?'online':'offline')}><span/> {db?'D1 متصل':'محلي'}</span><select value={role} onChange={e=>setRole(e.target.value)} className="select"><option value="super_admin">مدير النظام</option><option value="hr">مدير الموارد البشرية</option><option value="manager">مدير مباشر</option><option value="employee">موظف</option></select><button className="btn" onClick={onReset}><RefreshCw size={14}/> إعادة الديمو</button><div className="avatar">م</div></div></header>}
+function Topbar({company,user,onMenu,onLogout,onReset,db}){return <header className="topbar"><button className="icon-btn mobile-menu" onClick={onMenu}><Menu/></button><div className="company-switch"><span className="company-mark">{company.code.slice(0,2)}</span><span><b>{company.name}</b><small>{company.code} · {company.timezone}</small></span><ChevronDown size={15}/></div><div className="top-actions"><span className={'connection '+(db?'online':'offline')}><span/> {db?'D1 متصل':'غير متصل'}</span><div className="user-chip"><div className="avatar">{(user?.displayName||'م').slice(0,1)}</div><span><b>{user?.displayName}</b><small>{user?.roleName}</small></span></div><button className="btn" onClick={onLogout}><Lock size={14}/> تسجيل الخروج</button></div></header>}
 function Routes(p){const {page,role,go}=p; if(page!=='dashboard'&&!nav.some(n=>n[0]===page))return <Dashboard {...p}/>;const needed=nav.find(n=>n[0]===page)?.[3];if(needed&&!has(role,needed))return <AccessDenied go={go}/>;switch(page){case'employees':return <Employees {...p}/>;case'transactions':return <Transactions {...p}/>;case'builder':return <Builder {...p}/>;case'leaves':return <Leaves {...p}/>;case'payroll':return <Payroll {...p}/>;case'eos':return <EOS {...p}/>;case'documents':return <Documents {...p}/>;case'reports':return <Reports {...p}/>;case'settings':return <SettingsPage {...p}/>;default:return <Dashboard {...p}/>}}
 
 function Dashboard({state,go,openModal,role}){

@@ -1,6 +1,7 @@
 import { onRequestGet as healthGet } from '../functions/api/health.js';
 import { onRequestGet as stateGet } from '../functions/api/state.js';
 import { onRequestPost as mutationsPost } from '../functions/api/mutations.js';
+import { onRequestPost as loginPost, onRequestGet as authGet, onRequestDelete as logoutDelete } from '../functions/api/auth-login.js';
 
 function corsHeaders() {
   return {
@@ -27,6 +28,15 @@ export default {
     try {
       if (url.pathname === '/api/health' && request.method === 'GET') {
         return withCors(await healthGet({ request, env, ctx }));
+      }
+      if (url.pathname === '/api/auth/login' && request.method === 'POST') {
+        return withCors(await loginPost({ request, env, ctx }));
+      }
+      if (url.pathname === '/api/auth/me' && request.method === 'GET') {
+        return withCors(await authGet({ request, env, ctx }));
+      }
+      if (url.pathname === '/api/auth/logout' && request.method === 'DELETE') {
+        return withCors(await logoutDelete({ request, env, ctx }));
       }
       if (url.pathname === '/api/state' && request.method === 'GET') {
         return withCors(await stateGet({ request, env, ctx }));
