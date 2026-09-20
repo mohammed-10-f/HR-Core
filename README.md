@@ -1,37 +1,36 @@
 # HR Core — Enterprise HR Operating System
 
-HR Core is being built as a multi-tenant enterprise HR platform, not a presentation-only demo.
+نسخة HR Core الحالية تحتوي على:
+- رئيسية مشتركة لجميع المستخدمين مع محتوى يتغير حسب الدور.
+- قائمة جانبية تعتمد على الصلاحيات.
+- مركز معاملات مقسم إلى الكل / الواردة / الصادرة / مسودة / قيد المعالجة / معادة للتعديل / مرفوضة / مكتملة.
+- تفاصيل المعاملة ومسارها وسجل إجراءاتها.
+- نطاق وصول مختلف للموظفين والمديرين وHR ومدير النظام.
+- منشئ معاملات ديناميكي + Workflow.
+- تكامل Cloudflare Pages Functions + D1.
+- وضع محلي احتياطي للتطوير.
 
-## Current build
-- Dynamic transaction definition builder.
-- Dynamic form fields with visibility and required rules.
-- Workflow steps with assignee resolution, actions and transitions.
-- Versioned transaction-definition foundation.
-- Transaction instances with history and audit foundation.
-- Employee, leave, payroll, EOS, documents and reports foundations.
-- Supabase/PostgreSQL schema with tenant isolation foundation.
-- Local mode remains available for UI development only.
-
-## Architecture target
-React/Vite → authenticated application → Supabase Auth/PostgreSQL/Storage → RLS/RBAC/Audit/Backups.
-
-The browser is never trusted for authorization.
-
-## Run
+## التشغيل
 
 ```bash
 npm install
-npm run build
 npm run dev
 ```
 
-For Supabase:
+## Cloudflare D1
+
+القاعدة المستهدفة: `hr-core`
+
+1. ضع Database ID في `wrangler.toml`.
+2. طبّق migration:
 
 ```bash
-cp .env.example .env
+npx wrangler d1 migrations apply hr-core --remote
 ```
 
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Never expose a service-role key in the browser.
+3. انشر Pages مع binding باسم `DB`.
+4. اختبر `/api/health`.
 
-## Important
-This repository is a development foundation. It is not a claim that security, legal compliance, load capacity or production readiness has been independently certified. Before real employee data, complete the production checklist and run security/load/E2E testing.
+## ملاحظة أمنية
+
+اختيار الدور في أعلى الواجهة Demo فقط. D1 لا يوفر Authentication بحد ذاته. للإنتاج يجب إضافة هوية موثوقة، تخزين الدور والنطاق Server-side، ومنع أي mutation أو query غير مصرح بها داخل Functions. لا تعتمد على إخفاء عناصر React كحماية.
