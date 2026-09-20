@@ -19,10 +19,17 @@ const roles=[
 /* UI permissions are intentionally granular. Production authorization must be enforced by the API/DB as well. */
 const permissions={
  super_admin:['*'],
- hr:['employees.view','employees.create','employees.view_salary','transactions.view','transactions.create','transactions.act','transactions.builder','leaves.view','payroll.view','eos.view','documents.view','reports.view','settings.view','users.manage','roles.manage','audit.view'],
- manager:['employees.view','transactions.view','transactions.create','transactions.act','leaves.view','documents.view','reports.view'],
- employee:['transactions.view','transactions.create','leaves.view','documents.view','payroll.view']
+ hr:['dashboard.view','employees.view','employees.create','employees.edit','employees.delete','departments.view','departments.create','departments.edit','departments.delete','positions.view','positions.create','positions.edit','positions.delete','transactions.view','transactions.create','transactions.edit','transactions.approve','transactions.return','transactions.reject','transactions.complete','leaves.view','leaves.create','leaves.approve','leaves.reject','documents.view','documents.upload','documents.delete','payroll.view','payroll.manage','audit.view'],
+ manager:['dashboard.view','employees.view','employees.edit','transactions.view','transactions.approve','transactions.return','transactions.reject','transactions.complete','leaves.view','leaves.approve','leaves.reject','documents.view'],
+ employee:['dashboard.view','employees.view','transactions.view','transactions.create','transactions.edit','leaves.view','leaves.create','documents.view','documents.upload']
 };
+const has=(role,p)=>permissions[role]?.includes('*')||permissions[role]?.includes(p);
+
+const seedEmployees=[
+{id:'EMP-1001',name:'محمد أحمد',job:'أخصائي موارد بشرية',dept:'الموارد البشرية',branch:'الرياض',nationality:'سعودي',salary:9000,joinDate:'2023-01-01',status:'على رأس العمل',managerId:null},
+{id:'EMP-1002',name:'سارة العتيبي',job:'مدير فرع',dept:'العمليات',branch:'الرياض',nationality:'سعودية',salary:12500,joinDate:'2022-05-15',status:'على رأس العمل',managerId:null},
+{id:'EMP-1003',name:'خالد الحربي',job:'محاسب',dept:'المالية',branch:'جدة',nationality:'سعودي',salary:8500,joinDate:'2024-02-10',status:'على رأس العمل',managerId:'EMP-1002'},
+{id:'EMP-1004',name:'ريم القحطاني',job:'منسق عمليات',dept:'العمليات',branch:'الدمام',nationality:'سعودية',salary:7200,joinDate:'2025-08-01',status:'على رأس العمل',managerId:'EMP-1002'}];
 const seedDefinitions=[{id:'leave',name:'طلب إجازة',category:'الإجازات',active:true,public:true,fields:[
 {id:'leave_type',label:'نوع الإجازة',type:'select',required:true,options:['سنوية','مرضية','غير مدفوعة']},{id:'from',label:'تاريخ البداية',type:'date',required:true},{id:'to',label:'تاريخ النهاية',type:'date',required:true},{id:'reason',label:'السبب',type:'textarea',required:false},{id:'attachment',label:'مرفق مؤيد',type:'file',required:false}],steps:[
 {id:'s1',name:'اعتماد المدير المباشر',assignee:{type:'manager'},actions:[{id:'approve',label:'موافقة',next:'s2'},{id:'reject',label:'رفض',next:'END_REJECTED'},{id:'return',label:'إعادة للتعديل',next:'START'}]},

@@ -21,12 +21,19 @@ export async function getAuthUser(request, env) {
   if (!token || !env.DB) return null;
   const now = new Date().toISOString();
   return await env.DB.prepare(`
-    SELECT u.id,u.username,u.display_name AS displayName,u.role_id AS roleId,
-           r.name AS roleName,u.employee_id AS employeeId,u.company_id AS companyId
+    SELECT
+      u.id,
+      u.username,
+      u.display_name AS displayName,
+      u.role_id AS roleDbId,
+      r.code AS roleId,
+      r.name_ar AS roleName,
+      u.employee_id AS employeeId,
+      u.company_id AS companyId
     FROM sessions s
     JOIN users u ON u.id=s.user_id
     JOIN roles r ON r.id=u.role_id
-    WHERE s.token=? AND s.expires_at>? AND u.active=1
+    WHERE s.session_token=? AND s.expires_at>? AND u.active=1
     LIMIT 1
   `).bind(token, now).first();
 }
@@ -42,17 +49,23 @@ export function clearSessionCookie() {
 export async function permissionsFor(env, user) {
   if (!user) return [];
   const rows = await env.DB.prepare(`
-    SELECT rp.permission_id AS id,rp.scope
+    SELECT
+      p.id,
+      p.code,
+      rp.scope
     FROM role_permissions rp
+    JOIN permissions p ON p.id=rp.permission_id
     WHERE rp.role_id=?
-    ORDER BY rp.permission_id
-  `).bind(user.roleId).all();
+    ORDER BY p.id
+  `).bind(user.roleDbId ?? user.roleId).all();
   return rows.results || [];
 }
 
 export async function can(env, user, permission) {
+  if (!user) return false;
+  if (user.roleId === 'super_admin') return true;
   const rows = await permissionsFor(env, user);
-  return user?.roleId === 'super_admin' || rows.some(x => x.id === permission);
+  return rows.some(x => x.code === permission);
 }
 
 export function json(data,status=200,extra={}) {
