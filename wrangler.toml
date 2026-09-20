@@ -11,4 +11,4 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "hr-core"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "8643f669-8b74-4988-9b50-8d105cee4ae7"
