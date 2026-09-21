@@ -45,7 +45,16 @@ export async function ensureSchema(env){
     schemaPromise=(async()=>{
       for(const sql of CREATE_STATEMENTS) await env.DB.prepare(sql).run();
       for(const p of SEED_PERMISSIONS) await env.DB.prepare('INSERT OR IGNORE INTO permission_catalog(id,module,resource,action,label_ar) VALUES(?,?,?,?,?)').bind(...p).run();
-      for(const p of SEED_PERMISSIONS) await env.DB.prepare('INSERT OR IGNORE INTO permissions(id,name,description) VALUES(?,?,?)').bind(p[0],p[4],p[4]).run();
+      // permissions exists in multiple legacy schemas. Never assume a `name` column.
+      const permInfo=await env.DB.prepare('PRAGMA table_info(permissions)').all();
+      const permCols=new Set((permInfo.results||[]).map(r=>r.name));
+      for(const p of SEED_PERMISSIONS){
+        const values={id:p[0],code:p[0],name:p[4],name_ar:p[4],description:p[4],label_ar:p[4],active:1};
+        const cols=['id',...['code','name','name_ar','description','label_ar','active'].filter(c=>permCols.has(c))];
+        const placeholders=cols.map(()=>'?').join(',');
+        const vals=cols.map(c=>values[c]);
+        await env.DB.prepare(`INSERT OR IGNORE INTO permissions(${cols.join(',')}) VALUES(${placeholders})`).bind(...vals).run();
+      }
       await env.DB.prepare('INSERT OR IGNORE INTO system_schema_versions(version) VALUES(1)').run();
       return true;
     })().catch(e=>{schemaPromise=null;throw e});
