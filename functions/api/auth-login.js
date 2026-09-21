@@ -1,4 +1,4 @@
-import {body,fail,json,setSessionCookie,clearSessionCookie,hashPassword,id,requireAuth,audit,verifyPassword} from './_core.js';
+import {body,fail,json,setSessionCookie,clearSessionCookie,hashPassword,id,requireAuth,createSession,deleteSession,audit,verifyPassword} from './_core.js';
 
 export async function onRequestPost({request,env}){
   const b=await body(request);
@@ -10,7 +10,7 @@ export async function onRequestPost({request,env}){
   if(/^[a-f0-9]{64}$/i.test(u.password_hash)){const ph=await hashPassword(password);await env.DB.prepare('UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(ph,u.id).run().catch(()=>{});}
   const token=id('sess');
   const expires=new Date(Date.now()+8*60*60*1000).toISOString();
-  await env.DB.prepare('INSERT INTO sessions(token,user_id,expires_at) VALUES(?,?,?)').bind(token,u.id,expires).run();
+  await createSession(env, token, u.id, expires);
   await env.DB.prepare('UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?').bind(u.id).run().catch(()=>{});
   await audit(env,u,'login','session',token);
   return new Response(JSON.stringify({ok:true,user:{id:u.id,username:u.username,name:u.display_name,roleId:u.role_id,roleName:u.role_name||String(u.role_id),employeeId:u.employee_id,companyId:u.company_id}}),{headers:{'Content-Type':'application/json','Set-Cookie':setSessionCookie(token,28800)}});
@@ -24,6 +24,6 @@ export async function onRequestGet({request,env}){
 
 export async function onRequestDelete({request,env}){
   const a=await requireAuth(request,env);
-  if(!a.error){await env.DB.prepare('DELETE FROM sessions WHERE token=?').bind(a.token).run();await audit(env,a.user,'logout','session',a.token);}
+  if(!a.error){await deleteSession(env,a.token).catch(()=>{});await audit(env,a.user,'logout','session',a.token);}
   return new Response(JSON.stringify({ok:true}),{headers:{'Content-Type':'application/json','Set-Cookie':clearSessionCookie()}});
 }
