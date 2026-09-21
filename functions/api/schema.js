@@ -61,6 +61,8 @@ const TABLES = {
 
 // Columns the runtime actually relies on in legacy tables. Existing tables are
 // altered only by adding nullable/defaulted columns. No type changes or drops.
+const APP_SCHEMA_VERSION = 2;
+
 const COLUMNS = {
  users: {password_hash:'TEXT',display_name:'TEXT',email:'TEXT',employee_id:'INTEGER',role_id:'INTEGER',company_id:'INTEGER',active:'INTEGER NOT NULL DEFAULT 1',last_login_at:'TEXT',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP',updated_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
  roles: {code:'TEXT',name_ar:'TEXT',name_en:'TEXT',description:'TEXT',is_system:'INTEGER NOT NULL DEFAULT 0',active:'INTEGER NOT NULL DEFAULT 1',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
@@ -69,9 +71,9 @@ const COLUMNS = {
  sessions: {token:'TEXT',user_id:'INTEGER',expires_at:'TEXT',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
  permissions: {code:'TEXT',name_ar:'TEXT',label_ar:'TEXT',description:'TEXT',active:'INTEGER NOT NULL DEFAULT 1'},
  role_permissions: {scope:'TEXT DEFAULT company'},
- transaction_definitions: {name_ar:'TEXT',name_en:'TEXT',code:'TEXT',active:'INTEGER NOT NULL DEFAULT 1',company_id:'INTEGER'},
- transactions: {company_id:'INTEGER',definition_id:'TEXT',employee_id:'TEXT',status:'TEXT',current_step_id:'TEXT',created_by:'INTEGER',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP',updated_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
- transaction_history: {transaction_id:'TEXT',action:'TEXT',actor_user_id:'INTEGER',comment:'TEXT',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
+ transaction_definitions: {name:'TEXT',name_ar:'TEXT',name_en:'TEXT',code:'TEXT',category:"TEXT DEFAULT 'عام'",description:'TEXT',active:'INTEGER NOT NULL DEFAULT 1',public:'INTEGER NOT NULL DEFAULT 1',version:'INTEGER NOT NULL DEFAULT 1',definition_json:"TEXT DEFAULT '{}'",company_id:'INTEGER'},
+ transactions: {company_id:'INTEGER',definition_id:'TEXT',definition_name:'TEXT',employee_id:'TEXT',requester_user_id:'INTEGER',requester_role:'TEXT',status:'TEXT',current_step_id:'TEXT',values_json:"TEXT DEFAULT '{}'",created_by:'INTEGER',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP',updated_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
+ transaction_history: {transaction_id:'TEXT',action:'TEXT',actor_user_id:'INTEGER',actor_name:'TEXT',step:'TEXT',comment:'TEXT',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
  transaction_comments: {transaction_id:'TEXT',user_id:'INTEGER',comment:'TEXT',created_at:'TEXT DEFAULT CURRENT_TIMESTAMP'},
  departments: {company_id:'INTEGER',name_ar:'TEXT',name_en:'TEXT',code:'TEXT',active:'INTEGER NOT NULL DEFAULT 1'},
  positions: {company_id:'INTEGER',department_id:'INTEGER',title_ar:'TEXT',title_en:'TEXT',code:'TEXT',active:'INTEGER NOT NULL DEFAULT 1'},
@@ -111,6 +113,18 @@ async function reconcileLegacyColumns(env){
   for(const [table,cols] of Object.entries(COLUMNS)){
     if(!await hasTable(env,table)) continue;
     for(const [column,definition] of Object.entries(cols)) await addColumn(env,table,column,definition);
+  }
+}
+
+async function syncDataAliases(env){
+  // Keep legacy and canonical names synchronized without destructive changes.
+  if(await hasTable(env,'transaction_definitions')){
+    const cols=new Set((await tableInfo(env,'transaction_definitions')).map(c=>c.name));
+    if(cols.has('name') && cols.has('name_ar')){
+      await env.DB.prepare(`UPDATE transaction_definitions SET name=name_ar WHERE (name IS NULL OR name='') AND name_ar IS NOT NULL`).run().catch(()=>{});
+      await env.DB.prepare(`UPDATE transaction_definitions SET name_ar=name WHERE (name_ar IS NULL OR name_ar='') AND name IS NOT NULL`).run().catch(()=>{});
+    }
+    if(cols.has('definition_json')) await env.DB.prepare(`UPDATE transaction_definitions SET definition_json='{}' WHERE definition_json IS NULL OR definition_json=''`).run().catch(()=>{});
   }
 }
 
@@ -183,9 +197,17 @@ async function migrateRolePermissionKeys(env){
 export async function ensureSchema(env){
   if(!schemaPromise){
     schemaPromise=(async()=>{
-      // Base compatibility objects first; they do not depend on business tables.
+      // Fast path: once the deployed schema version is reconciled, normal requests
+      // do not run dozens of PRAGMA/ALTER/seed operations.
+      try {
+        const current=await env.DB.prepare('SELECT MAX(version) AS version FROM system_schema_versions').first();
+        if(Number(current?.version||0) >= APP_SCHEMA_VERSION) return true;
+      } catch {}
+
+      // Slow path runs only on first deployment or after a schema-version bump.
       for(const [name,sql] of Object.entries(TABLES)) await ensureTable(env,name,sql);
       await reconcileLegacyColumns(env);
+      await syncDataAliases(env);
       await syncPermissionCatalog(env);
       await migrateRolePermissionKeys(env);
       await ensureIndex(env,`CREATE INDEX IF NOT EXISTS idx_schema_issues_open ON schema_issues(resolved_at,last_seen_at)`,`idx_schema_issues_open`);
@@ -196,8 +218,10 @@ export async function ensureSchema(env){
       await ensureIndex(env,`CREATE INDEX IF NOT EXISTS idx_employee_org_company ON employee_org_assignments(company_id,active)`,`idx_employee_org_company`);
       await ensureIndex(env,`CREATE UNIQUE INDEX IF NOT EXISTS ux_employee_org_active ON employee_org_assignments(employee_id) WHERE active=1`,`ux_employee_org_active`);
       await ensureIndex(env,`CREATE UNIQUE INDEX IF NOT EXISTS ux_slot_active_assignment ON employee_org_assignments(slot_id) WHERE active=1`,`ux_slot_active_assignment`);
+
       await env.DB.prepare(`INSERT OR IGNORE INTO schema_migrations(version,name) VALUES(1,'baseline-enterprise-schema')`).run();
-      await env.DB.prepare(`INSERT OR IGNORE INTO system_schema_versions(version) VALUES(1)`).run().catch(()=>{});
+      await env.DB.prepare(`INSERT OR IGNORE INTO schema_migrations(version,name) VALUES(2,'runtime-compatibility-and-fast-schema-gate')`).run();
+      await env.DB.prepare(`INSERT OR IGNORE INTO system_schema_versions(version) VALUES(?)`).bind(APP_SCHEMA_VERSION).run();
       return true;
     })().catch(e=>{schemaPromise=null;throw e});
   }
