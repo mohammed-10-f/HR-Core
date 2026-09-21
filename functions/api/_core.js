@@ -1,4 +1,4 @@
-const json = (data,status=200,extra={}) => new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8',...extra}});
+export const json = (data,status=200,extra={}) => new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8',...extra}});
 export function fail(message,status=400,code='BAD_REQUEST'){return json({ok:false,error:{code,message}},status)}
 export async function body(request){try{return await request.json()}catch{return {}}}
 export function id(prefix='id'){return `${prefix}_${crypto.randomUUID()}`}
