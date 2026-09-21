@@ -7,7 +7,7 @@ export async function onRequestPost({request,env}){
   const username=String(b.username||'').trim();
   const password=String(b.password||b.pin||'');
   if(!username||!password)return fail('اسم المستخدم وكلمة المرور مطلوبان.');
-  const u=await env.DB.prepare(`SELECT u.*, r.name_ar AS role_name FROM users u LEFT JOIN roles r ON r.id=u.role_id WHERE u.username=? LIMIT 1`).bind(username).first();
+  const u=await env.DB.prepare(`SELECT u.*, r.name_ar AS role_name, r.code AS role_code FROM users u LEFT JOIN roles r ON r.id=u.role_id WHERE u.username=? LIMIT 1`).bind(username).first();
   if(!u||!u.active||!(await verifyPassword(password,u.password_hash)))return fail('بيانات الدخول غير صحيحة.',401,'INVALID_CREDENTIALS');
   if(/^[a-f0-9]{64}$/i.test(u.password_hash)){const ph=await hashPassword(password);await env.DB.prepare('UPDATE users SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').bind(ph,u.id).run().catch(()=>{});}
   const token=id('sess');
@@ -15,7 +15,7 @@ export async function onRequestPost({request,env}){
   await createSession(env, token, u.id, expires);
   await env.DB.prepare('UPDATE users SET last_login_at=CURRENT_TIMESTAMP WHERE id=?').bind(u.id).run().catch(()=>{});
   await audit(env,u,'login','session',token);
-  return new Response(JSON.stringify({ok:true,user:{id:u.id,username:u.username,name:u.display_name,roleId:u.role_id,roleName:u.role_name||String(u.role_id),employeeId:u.employee_id,companyId:u.company_id}}),{headers:{'Content-Type':'application/json','Set-Cookie':setSessionCookie(token,28800)}});
+  return new Response(JSON.stringify({ok:true,user:{id:u.id,username:u.username,name:u.display_name,roleId:u.role_id,roleName:u.role_name||String(u.role_id),roleCode:u.role_code||'',employeeId:u.employee_id,companyId:u.company_id}}),{headers:{'Content-Type':'application/json','Set-Cookie':setSessionCookie(token,28800)}});
 }
 
 export async function onRequestGet({request,env}){
