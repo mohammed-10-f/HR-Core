@@ -1,4 +1,14 @@
 import {json,requirePermission} from './_core.js';
-import {ensureSchema,cleanupKnownOrphans} from './schema.js';
-export async function onRequestGet({request,env}){const a=await requirePermission(request,env,'system.maintenance');if(a.error)return a.error;await ensureSchema(env);const tables=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();return json({ok:true,schema_ready:true,tables:tables.results||[]})}
-export async function onRequestPost({request,env}){const a=await requirePermission(request,env,'system.maintenance');if(a.error)return a.error;const result=await cleanupKnownOrphans(env);return json({...result,message:'تمت مزامنة الجداول وتنظيف السجلات اليتيمة المعروفة. لم يتم حذف أي جدول أو بيانات تشغيلية سليمة.'})}
+import {ensureSchema,cleanupKnownOrphans,schemaHealth} from './schema.js';
+export async function onRequestGet({request,env}){
+  const a=await requirePermission(request,env,'system.maintenance'); if(a.error)return a.error;
+  const schema=await schemaHealth(env);
+  return json({ok:true,schema_ready:true,...schema});
+}
+export async function onRequestPost({request,env}){
+  const a=await requirePermission(request,env,'system.maintenance'); if(a.error)return a.error;
+  await ensureSchema(env);
+  const result=await cleanupKnownOrphans(env);
+  const schema=await schemaHealth(env);
+  return json({ok:true,...result,...schema,message:'تمت مزامنة المخطط وتنظيف السجلات اليتيمة المعروفة. لا يتم حذف الجداول أو الأعمدة أو بيانات الأعمال تلقائيًا.'});
+}

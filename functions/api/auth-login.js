@@ -1,6 +1,8 @@
 import {body,fail,json,setSessionCookie,clearSessionCookie,hashPassword,id,requireAuth,createSession,deleteSession,audit,verifyPassword} from './_core.js';
+import {ensureSchema} from './schema.js';
 
 export async function onRequestPost({request,env}){
+  await ensureSchema(env);
   const b=await body(request);
   const username=String(b.username||'').trim();
   const password=String(b.password||b.pin||'');
@@ -17,12 +19,14 @@ export async function onRequestPost({request,env}){
 }
 
 export async function onRequestGet({request,env}){
+  await ensureSchema(env);
   const a=await requireAuth(request,env);
   if(a.error)return a.error;
   return json({ok:true,user:{id:a.user.id,username:a.user.username,name:a.user.display_name,roleId:a.user.role_id,roleName:a.user.role_name||String(a.user.role_id),employeeId:a.user.employee_id,companyId:a.user.company_id}});
 }
 
 export async function onRequestDelete({request,env}){
+  await ensureSchema(env);
   const a=await requireAuth(request,env);
   if(!a.error){await deleteSession(env,a.token).catch(()=>{});await audit(env,a.user,'logout','session',a.token);}
   return new Response(JSON.stringify({ok:true}),{headers:{'Content-Type':'application/json','Set-Cookie':clearSessionCookie()}});

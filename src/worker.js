@@ -13,9 +13,11 @@ import * as settings from '../functions/api/settings.js';
 import * as organization from '../functions/api/organization.js';
 import * as builder from '../functions/api/transaction-builder.js';
 import * as maintenance from '../functions/api/maintenance.js';
+import {ensureSchema} from '../functions/api/schema.js';
 function cors(){return {'Access-Control-Allow-Origin':'same-origin','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization,Cookie'}}
 function wrap(r){const h=new Headers(r.headers);Object.entries(cors()).forEach(([k,v])=>h.set(k,v));return new Response(r.body,{status:r.status,headers:h})}
 export default {async fetch(request,env,ctx){const u=new URL(request.url);if(request.method==='OPTIONS'&&u.pathname.startsWith('/api/'))return new Response(null,{status:204,headers:cors()});try{
+ if(u.pathname.startsWith('/api/')) await ensureSchema(env);
  let r;
  if(u.pathname==='/api/health'&&request.method==='GET')r=await healthGet({request,env,ctx});
  else if(u.pathname==='/api/auth/login'&&request.method==='POST')r=await loginPost({request,env,ctx});
