@@ -41,7 +41,28 @@ export async function deleteSession(env,token){
   await env.DB.prepare(`DELETE FROM sessions WHERE ${s.tokenCol}=?`).bind(token).run();
 }
 
-export async function permission(env,user,perm){await ensureSchema(env);const row=await env.DB.prepare(`SELECT rp.scope FROM role_permissions rp WHERE rp.role_id=? AND rp.permission_id=? UNION SELECT 'company' FROM role_scopes rs WHERE rs.role_id=? AND rs.permission_id=? LIMIT 1`).bind(user.role_id,perm,user.role_id,perm).first();return row?.scope||null}
+export async function permission(env,user,perm){
+  await ensureSchema(env);
+  // Canonical/new permissions use text ids in permission_catalog/role_scopes.
+  const direct=await env.DB.prepare(`SELECT scope FROM role_scopes WHERE role_id=? AND permission_id=? LIMIT 1`).bind(user.role_id,perm).first();
+  if(direct?.scope) return direct.scope;
+  // Legacy role_permissions may use either numeric or text permission ids. Try the direct value first.
+  const rp=await env.DB.prepare(`SELECT scope FROM role_permissions WHERE role_id=? AND permission_id=? LIMIT 1`).bind(user.role_id,perm).first();
+  if(rp?.scope) return rp.scope;
+  // If the legacy permissions table exposes a code/name column, resolve the legacy id safely.
+  const info=await env.DB.prepare('PRAGMA table_info(permissions)').all();
+  const cols=new Set((info.results||[]).map(r=>r.name));
+  const candidates=['code','key','permission_key','name_ar','name','label_ar'];
+  const labelCol=candidates.find(c=>cols.has(c));
+  if(labelCol){
+    const legacy=await env.DB.prepare(`SELECT id FROM permissions WHERE ${labelCol}=? LIMIT 1`).bind(perm).first();
+    if(legacy){
+      const r=await env.DB.prepare('SELECT scope FROM role_permissions WHERE role_id=? AND permission_id=? LIMIT 1').bind(user.role_id,legacy.id).first();
+      if(r?.scope) return r.scope;
+    }
+  }
+  return null;
+}
 export async function audit(env,user,action,entityType,entityId,details={}){await ensureSchema(env);await env.DB.prepare(`INSERT INTO audit_logs(company_id,actor_user_id,actor_name,action,entity_type,entity_id,details) VALUES(?,?,?,?,?,?,?)`).bind(user.company_id,user.id,user.display_name,action,entityType,entityId,JSON.stringify(details)).run()}
 export async function notify(env,userId,companyId,title,body,resourceType=null,resourceId=null){await env.DB.prepare(`INSERT INTO notifications(id,company_id,user_id,type,title_ar,body_ar,resource_type,resource_id) VALUES(?,?,?,?,?,?,?,?)`).bind(id('ntf'),companyId,userId,'system',title,body,resourceType,resourceId).run()}
 export async function requirePermission(request,env,perm){const a=await requireAuth(request,env);if(a.error)return a;const role=await env.DB.prepare('SELECT code,name_ar FROM roles WHERE id=?').bind(a.user.role_id).first();if(role?.code==='super_admin'||role?.name_ar==='مدير النظام')return {...a,scope:'company'};const scope=await permission(env,a.user,perm);if(!scope)return {error:fail('ليس لديك الصلاحية المطلوبة.',403,'FORBIDDEN')};return {...a,scope}}
