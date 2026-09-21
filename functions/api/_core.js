@@ -1,3 +1,4 @@
+import {ensureSchema} from './schema.js';
 export const json = (data,status=200,extra={}) => new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8',...extra}});
 export function fail(message,status=400,code='BAD_REQUEST'){return json({ok:false,error:{code,message}},status)}
 export async function body(request){try{return await request.json()}catch{return {}}}
@@ -27,6 +28,7 @@ export async function createSession(env,token,userId,expiresAt){
   await env.DB.prepare(`INSERT INTO sessions(${cols.join(',')}) VALUES(${placeholders})`).bind(token,userId,expiresAt).run();
 }
 export async function requireAuth(request,env){
+  await ensureSchema(env);
   const token=cookieToken(request);
   if(!token)return {error:fail('غير مصرح. يرجى تسجيل الدخول.',401,'UNAUTHORIZED')};
   const s=await sessionSchema(env);
@@ -39,7 +41,7 @@ export async function deleteSession(env,token){
   await env.DB.prepare(`DELETE FROM sessions WHERE ${s.tokenCol}=?`).bind(token).run();
 }
 
-export async function permission(env,user,perm){const row=await env.DB.prepare(`SELECT rp.scope FROM role_permissions rp WHERE rp.role_id=? AND rp.permission_id=? UNION SELECT 'company' FROM role_scopes rs WHERE rs.role_id=? AND rs.permission_id=? LIMIT 1`).bind(user.role_id,perm,user.role_id,perm).first();return row?.scope||null}
+export async function permission(env,user,perm){await ensureSchema(env);const row=await env.DB.prepare(`SELECT rp.scope FROM role_permissions rp WHERE rp.role_id=? AND rp.permission_id=? UNION SELECT 'company' FROM role_scopes rs WHERE rs.role_id=? AND rs.permission_id=? LIMIT 1`).bind(user.role_id,perm,user.role_id,perm).first();return row?.scope||null}
 export async function audit(env,user,action,entityType,entityId,details={}){await env.DB.prepare(`INSERT INTO audit_logs(company_id,actor_user_id,actor_name,action,entity_type,entity_id,details) VALUES(?,?,?,?,?,?,?)`).bind(user.company_id,user.id,user.display_name,action,entityType,entityId,JSON.stringify(details)).run()}
 export async function notify(env,userId,companyId,title,body,resourceType=null,resourceId=null){await env.DB.prepare(`INSERT INTO notifications(id,company_id,user_id,type,title_ar,body_ar,resource_type,resource_id) VALUES(?,?,?,?,?,?,?,?)`).bind(id('ntf'),companyId,userId,'system',title,body,resourceType,resourceId).run()}
-export async function requirePermission(request,env,perm){const a=await requireAuth(request,env);if(a.error)return a;const scope=await permission(env,a.user,perm);if(!scope)return {error:fail('ليس لديك الصلاحية المطلوبة.',403,'FORBIDDEN')};return {...a,scope}}
+export async function requirePermission(request,env,perm){const a=await requireAuth(request,env);if(a.error)return a;const role=await env.DB.prepare('SELECT code,name_ar FROM roles WHERE id=?').bind(a.user.role_id).first();if(role?.code==='super_admin'||role?.name_ar==='مدير النظام')return {...a,scope:'company'};const scope=await permission(env,a.user,perm);if(!scope)return {error:fail('ليس لديك الصلاحية المطلوبة.',403,'FORBIDDEN')};return {...a,scope}}

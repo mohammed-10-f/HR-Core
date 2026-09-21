@@ -1,0 +1,4 @@
+import {json,requirePermission} from './_core.js';
+import {ensureSchema,cleanupKnownOrphans} from './schema.js';
+export async function onRequestGet({request,env}){const a=await requirePermission(request,env,'system.maintenance');if(a.error)return a.error;await ensureSchema(env);const tables=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();return json({ok:true,schema_ready:true,tables:tables.results||[]})}
+export async function onRequestPost({request,env}){const a=await requirePermission(request,env,'system.maintenance');if(a.error)return a.error;const result=await cleanupKnownOrphans(env);return json({...result,message:'تمت مزامنة الجداول وتنظيف السجلات اليتيمة المعروفة. لم يتم حذف أي جدول أو بيانات تشغيلية سليمة.'})}

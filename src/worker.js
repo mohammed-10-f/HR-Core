@@ -10,6 +10,9 @@ import * as reports from '../functions/api/reports.js';
 import * as notifications from '../functions/api/notifications.js';
 import * as audit from '../functions/api/audit.js';
 import * as settings from '../functions/api/settings.js';
+import * as organization from '../functions/api/organization.js';
+import * as builder from '../functions/api/transaction-builder.js';
+import * as maintenance from '../functions/api/maintenance.js';
 function cors(){return {'Access-Control-Allow-Origin':'same-origin','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization,Cookie'}}
 function wrap(r){const h=new Headers(r.headers);Object.entries(cors()).forEach(([k,v])=>h.set(k,v));return new Response(r.body,{status:r.status,headers:h})}
 export default {async fetch(request,env,ctx){const u=new URL(request.url);if(request.method==='OPTIONS'&&u.pathname.startsWith('/api/'))return new Response(null,{status:204,headers:cors()});try{
@@ -40,6 +43,12 @@ export default {async fetch(request,env,ctx){const u=new URL(request.url);if(req
  else if(u.pathname==='/api/audit'&&request.method==='GET')r=await audit.onRequestGet({request,env});
  else if(u.pathname==='/api/settings'&&request.method==='GET')r=await settings.onRequestGet({request,env});
  else if(u.pathname==='/api/settings'&&request.method==='POST')r=await settings.onRequestPost({request,env});
+ else if(u.pathname==='/api/organization'&&request.method==='GET')r=await organization.onRequestGet({request,env});
+ else if(u.pathname==='/api/organization'&&request.method==='POST')r=await organization.onRequestPost({request,env});
+ else if(u.pathname==='/api/transaction-builder'&&request.method==='GET')r=await builder.onRequestGet({request,env});
+ else if(u.pathname==='/api/transaction-builder'&&request.method==='POST')r=await builder.onRequestPost({request,env});
+ else if(u.pathname==='/api/system/maintenance'&&request.method==='GET')r=await maintenance.onRequestGet({request,env});
+ else if(u.pathname==='/api/system/maintenance'&&request.method==='POST')r=await maintenance.onRequestPost({request,env});
  else if(u.pathname.startsWith('/api/'))r=new Response(JSON.stringify({ok:false,error:{code:'NOT_FOUND',message:'API route not found'}}),{status:404,headers:{'Content-Type':'application/json'}});
  else return env.ASSETS.fetch(request);
  return wrap(r);
