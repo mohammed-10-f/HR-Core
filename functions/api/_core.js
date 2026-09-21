@@ -14,31 +14,46 @@ function ub64(s){s=s.replaceAll('-','+').replaceAll('_','/');while(s.length%4)s+
 function hex(s){if(!/^[0-9a-f]+$/i.test(s))return new Uint8Array();const a=new Uint8Array(s.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(s.slice(i*2,i*2+2),16);return a}
 async function sessionSchema(env){
   const rows=await env.DB.prepare('PRAGMA table_info(sessions)').all();
-  const cols=(rows.results||[]).map(r=>r.name);
-  const tokenCol=['token','session_token','session_id'].find(c=>cols.includes(c));
-  const userCol=['user_id','userid','user'].find(c=>cols.includes(c));
-  const expiryCol=['expires_at','expires','expiry_at','expiresAt'].find(c=>cols.includes(c));
+  const meta=rows.results||[];
+  const cols=meta.map(r=>r.name);
+  const tokenCandidates=['session_token','token','session_id'];
+  const userCandidates=['user_id','userid','user'];
+  const expiryCandidates=['expires_at','expires','expiry_at','expiresAt'];
+  // Prefer the real legacy/canonical column when it is NOT NULL. This is
+  // important when the self-healing layer has added a nullable compatibility
+  // column such as `token` beside an existing required `session_token`.
+  const pick=(candidates)=>candidates.find(c=>cols.includes(c)&&meta.find(r=>r.name===c)?.notnull)
+    || candidates.find(c=>cols.includes(c));
+  const tokenCol=pick(tokenCandidates);
+  const userCol=pick(userCandidates);
+  const expiryCol=pick(expiryCandidates);
   if(!tokenCol||!userCol||!expiryCol) throw new Error('sessions table is missing a supported token/user/expiry column');
-  return {tokenCol,userCol,expiryCol,cols};
+  return {tokenCol,userCol,expiryCol,cols,meta,
+    tokenCols:tokenCandidates.filter(c=>cols.includes(c)),
+    userCols:userCandidates.filter(c=>cols.includes(c)),
+    expiryCols:expiryCandidates.filter(c=>cols.includes(c))};
 }
 export async function createSession(env,token,userId,expiresAt){
   const s=await sessionSchema(env);
-  const info=await env.DB.prepare('PRAGMA table_info(sessions)').all();
-  const meta=info.results||[];
-  const cols=[s.tokenCol,s.userCol,s.expiryCol];
-  const vals=[token,userId,expiresAt];
-  // Legacy sessions tables sometimes contain an extra required primary key.
-  // Populate only such columns when SQLite will not generate them itself.
-  for(const c of meta){
+  const cols=[]; const vals=[];
+  const add=(c,v)=>{if(c&& !cols.includes(c)){cols.push(c);vals.push(v)}};
+  // Populate every recognized session identity column. This keeps old and new
+  // schemas compatible and, crucially, satisfies NOT NULL legacy columns.
+  for(const c of s.tokenCols) add(c,token);
+  for(const c of s.userCols) add(c,userId);
+  for(const c of s.expiryCols) add(c,expiresAt);
+  for(const c of s.meta){
     if(cols.includes(c.name)||c.name==='created_at') continue;
     if(c.notnull && c.dflt_value===null && c.pk===0){
-      if(/(^|_)id$/i.test(c.name)) { cols.push(c.name); vals.push(id('sessrow')); }
-      else if(/created/i.test(c.name)) { cols.push(c.name); vals.push(new Date().toISOString()); }
+      if(/(^|_)id$/i.test(c.name)) add(c,id('sessrow'));
+      else if(/created/i.test(c.name)) add(c,new Date().toISOString());
+      else if(/active|enabled/i.test(c.name)) add(c,1);
     }
   }
   const placeholders=cols.map(()=>'?').join(',');
-  await env.DB.prepare(`INSERT INTO sessions(${cols.map(c=>'\"'+String(c).replaceAll('\"','\"\"')+'\"').join(',')}) VALUES(${placeholders})`).bind(...vals).run();
+  await env.DB.prepare(`INSERT INTO sessions(${cols.map(c=>'"'+String(c).replaceAll('"','""')+'"').join(',')}) VALUES(${placeholders})`).bind(...vals).run();
 }
+
 export async function requireAuth(request,env){
   await ensureSchema(env);
   const token=cookieToken(request);
