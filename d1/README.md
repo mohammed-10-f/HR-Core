@@ -1,18 +1,7 @@
-# HR Core — Cloudflare D1
+# HR Core D1
 
-هذا هو مخطط D1 الذي تتوقعه نسخة HR Core الحالية.
+Target database: `hr-core`, binding: `DB`.
 
-> إذا كانت قاعدة `hr-core` لديك تحتوي جداول مختلفة، لا تشغّل migration عشوائيًا فوقها. أرسل لي schema الحالية أو نتيجة `wrangler d1 execute hr-core --remote --command "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"` وسنطابق الـAPI معها.
+Run the existing `d1/schema.sql` only if provisioning a fresh database. For an existing database run `d1/migrations/0002_enterprise_hr_core.sql` first. The migration is additive and does not drop existing data.
 
-## التشغيل
-
-```bash
-npx wrangler d1 migrations apply hr-core --remote
-```
-
-بعدها:
-
-```bash
-npm run build
-npx wrangler pages deploy dist --project-name hr-core
-```
+Before any destructive migration, export a D1 backup and review the migration against production.

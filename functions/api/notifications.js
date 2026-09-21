@@ -1,0 +1,3 @@
+import {json,body,requireAuth,fail} from './_core.js';
+export async function onRequestGet({request,env}){const a=await requireAuth(request,env);if(a.error)return a.error;const r=await env.DB.prepare('SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50').bind(a.user.id).all();return json({ok:true,notifications:r.results||[]})}
+export async function onRequestPatch({request,env}){const a=await requireAuth(request,env);if(a.error)return a.error;const b=await body(request);if(!b.id)return fail('المعرف مطلوب.');await env.DB.prepare('UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?').bind(b.id,a.user.id).run();return json({ok:true})}

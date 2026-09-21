@@ -1,59 +1,46 @@
-import { onRequestGet as healthGet } from '../functions/api/health.js';
-import { onRequestGet as stateGet } from '../functions/api/state.js';
-import { onRequestPost as mutationsPost } from '../functions/api/mutations.js';
-import { onRequestPost as loginPost, onRequestGet as authGet, onRequestDelete as logoutDelete } from '../functions/api/auth-login.js';
-
-function corsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': 'same-origin',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cookie',
-  };
-}
-
-function withCors(response) {
-  const headers = new Headers(response.headers);
-  for (const [key, value] of Object.entries(corsHeaders())) headers.set(key, value);
-  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
-}
-
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-
-    if (request.method === 'OPTIONS' && url.pathname.startsWith('/api/')) {
-      return new Response(null, { status: 204, headers: corsHeaders() });
-    }
-
-    try {
-      if (url.pathname === '/api/health' && request.method === 'GET') {
-        return withCors(await healthGet({ request, env, ctx }));
-      }
-      if (url.pathname === '/api/auth/login' && request.method === 'POST') {
-        return withCors(await loginPost({ request, env, ctx }));
-      }
-      if (url.pathname === '/api/auth/me' && request.method === 'GET') {
-        return withCors(await authGet({ request, env, ctx }));
-      }
-      if (url.pathname === '/api/auth/logout' && request.method === 'DELETE') {
-        return withCors(await logoutDelete({ request, env, ctx }));
-      }
-      if (url.pathname === '/api/state' && request.method === 'GET') {
-        return withCors(await stateGet({ request, env, ctx }));
-      }
-      if (url.pathname === '/api/mutations' && request.method === 'POST') {
-        return withCors(await mutationsPost({ request, env, ctx }));
-      }
-
-      // All non-API routes are served by Vite's built SPA assets.
-      return env.ASSETS.fetch(request);
-    } catch (error) {
-      return withCors(new Response(JSON.stringify({
-        error: error?.message || String(error),
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      }));
-    }
-  },
-};
+import {onRequestGet as healthGet} from '../functions/api/health.js';
+import {onRequestPost as loginPost,onRequestGet as authGet,onRequestDelete as logoutDelete} from '../functions/api/auth-login.js';
+import {onRequestGet as stateGet} from '../functions/api/state.js';
+import * as users from '../functions/api/users.js';
+import * as roles from '../functions/api/roles.js';
+import * as employees from '../functions/api/employees.js';
+import * as transactions from '../functions/api/transactions.js';
+import * as payroll from '../functions/api/payroll.js';
+import * as reports from '../functions/api/reports.js';
+import * as notifications from '../functions/api/notifications.js';
+import * as audit from '../functions/api/audit.js';
+import * as settings from '../functions/api/settings.js';
+function cors(){return {'Access-Control-Allow-Origin':'same-origin','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,OPTIONS','Access-Control-Allow-Headers':'Content-Type,Authorization,Cookie'}}
+function wrap(r){const h=new Headers(r.headers);Object.entries(cors()).forEach(([k,v])=>h.set(k,v));return new Response(r.body,{status:r.status,headers:h})}
+export default {async fetch(request,env,ctx){const u=new URL(request.url);if(request.method==='OPTIONS'&&u.pathname.startsWith('/api/'))return new Response(null,{status:204,headers:cors()});try{
+ let r;
+ if(u.pathname==='/api/health'&&request.method==='GET')r=await healthGet({request,env,ctx});
+ else if(u.pathname==='/api/auth/login'&&request.method==='POST')r=await loginPost({request,env,ctx});
+ else if(u.pathname==='/api/auth/me'&&request.method==='GET')r=await authGet({request,env,ctx});
+ else if(u.pathname==='/api/auth/logout'&&request.method==='DELETE')r=await logoutDelete({request,env,ctx});
+ else if(u.pathname==='/api/state'&&request.method==='GET')r=await stateGet({request,env,ctx});
+ else if(u.pathname==='/api/users'&&request.method==='GET')r=await users.onRequestGet({request,env});
+ else if(u.pathname==='/api/users'&&request.method==='POST')r=await users.onRequestPost({request,env});
+ else if(u.pathname==='/api/users'&&request.method==='PATCH')r=await users.onRequestPatch({request,env});
+ else if(u.pathname==='/api/roles'&&request.method==='GET')r=await roles.onRequestGet({request,env});
+ else if(u.pathname==='/api/roles'&&request.method==='POST')r=await roles.onRequestPost({request,env});
+ else if(u.pathname==='/api/roles'&&request.method==='PATCH')r=await roles.onRequestPatch({request,env});
+ else if(u.pathname==='/api/employees'&&request.method==='GET')r=await employees.onRequestGet({request,env});
+ else if(u.pathname==='/api/employees'&&request.method==='POST')r=await employees.onRequestPost({request,env});
+ else if(u.pathname==='/api/employees'&&request.method==='PATCH')r=await employees.onRequestPatch({request,env});
+ else if(u.pathname==='/api/transactions'&&request.method==='GET')r=await transactions.onRequestGet({request,env});
+ else if(u.pathname==='/api/transactions'&&request.method==='POST')r=await transactions.onRequestPost({request,env});
+ else if(u.pathname.startsWith('/api/transactions/')&&u.pathname.endsWith('/action')&&request.method==='POST')r=await transactions.onRequestPostAction({request,env,txId:u.pathname.split('/')[3]});
+ else if(u.pathname==='/api/payroll'&&request.method==='GET')r=await payroll.onRequestGet({request,env});
+ else if(u.pathname==='/api/payroll'&&request.method==='POST')r=await payroll.onRequestPost({request,env});
+ else if(u.pathname==='/api/payroll'&&request.method==='PATCH')r=await payroll.onRequestPatch({request,env});
+ else if(u.pathname==='/api/reports'&&request.method==='GET')r=await reports.onRequestGet({request,env});
+ else if(u.pathname==='/api/notifications'&&request.method==='GET')r=await notifications.onRequestGet({request,env});
+ else if(u.pathname==='/api/notifications'&&request.method==='PATCH')r=await notifications.onRequestPatch({request,env});
+ else if(u.pathname==='/api/audit'&&request.method==='GET')r=await audit.onRequestGet({request,env});
+ else if(u.pathname==='/api/settings'&&request.method==='GET')r=await settings.onRequestGet({request,env});
+ else if(u.pathname==='/api/settings'&&request.method==='POST')r=await settings.onRequestPost({request,env});
+ else if(u.pathname.startsWith('/api/'))r=new Response(JSON.stringify({ok:false,error:{code:'NOT_FOUND',message:'API route not found'}}),{status:404,headers:{'Content-Type':'application/json'}});
+ else return env.ASSETS.fetch(request);
+ return wrap(r);
+ }catch(e){return wrap(new Response(JSON.stringify({ok:false,error:{code:'INTERNAL_ERROR',message:e?.message||String(e)}}),{status:500,headers:{'Content-Type':'application/json'}}))}}};
